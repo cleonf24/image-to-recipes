@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Recipe Generator</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg: #F9FAFB;
+            --text: #111827;
+            --border: #D1D5DB;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 { text-align: center; }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            margin-top: 16px;
+        }
+        input[type="text"], input[type="password"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        input[type="file"] {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+        textarea { resize: vertical; }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 6px;
+            width: 100%;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.2s;
+        }
+        button:hover { background-color: var(--primary-hover); }
+        button:disabled {
+            background-color: #9CA3AF;
+            cursor: not-allowed;
+        }
+        #imagePreview {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+        .recipe-content { white-space: pre-wrap; }
+        .loader {
+            text-align: center;
+            display: none;
+            font-weight: bold;
+            color: var(--primary);
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🍳 Visual Recipe Generator</h1>
+
+    <div class="card">
+        <label for="apiKey">Gemini API Key (Saved locally)</label>
+        <input type="password" id="apiKey" placeholder="AIzaSy...">
+        <small>Get a key from <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</small>
+
+        <label for="baseIngredients">Base Ingredients Available</label>
+        <textarea id="baseIngredients" rows="3">Salt, black pepper, butter, olive oil, milk, garlic powder, onion powder, water</textarea>
+
+        <label for="imageInput">Take a picture or upload ingredients:</label>
+        <input type="file" id="imageInput" accept="image/*" capture="environment">
+        
+        <img id="imagePreview" alt="Ingredient Preview">
+
+        <button id="generateBtn">Get Recipes</button>
+        <div class="loader" id="loader">Chef Gemini is thinking... 🧑‍🍳</div>
+    </div>
+
+    <div id="results">
+        <h2>Suggestions:</h2>
+        <div id="recipeOutput" class="recipe-content"></div>
+    </div>
+
+    <script>
+        // Load saved API key on startup
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedKey = localStorage.getItem("geminiApiKey");
+            if (savedKey) document.getElementById("apiKey").value = savedKey;
+        });
+
+        const imageInput = document.getElementById('imageInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const generateBtn = document.getElementById('generateBtn');
+        const loader = document.getElementById('loader');
+        const resultsDiv = document.getElementById('results');
+        const recipeOutput = document.getElementById('recipeOutput');
+
+        let base64Image = "";
+        let mimeType = "";
+
+        // Handle Image Selection & Preview
+        imageInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                mimeType = file.type;
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    // Extract the base64 string without the data URL prefix
+                    base64Image = e.target.result.split(',')[1];
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Handle API Call
+        generateBtn.addEventListener('click', async () => {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const baseIngredients = document.getElementById('baseIngredients').value.trim();
+
+            if (!apiKey) {
+                alert("Please enter your Gemini API Key.");
+                return;
+            }
+            if (!base64Image) {
+                alert("Please upload or take a picture of your ingredients.");
+                return;
+            }
+
+            // Save the API key to localStorage for convenience
+            localStorage.setItem("geminiApiKey", apiKey);
+
+            generateBtn.disabled = true;
+            loader.style.display = 'block';
+            resultsDiv.style.display = 'none';
+
+            // Construct the prompt
+            const promptText = `I have attached an image showing some food ingredients. I also have the following base ingredients available in my pantry: ${baseIngredients}. 
+            Please analyze the image, identify the ingredients, and suggest 2 or 3 recipes I can make using a combination of the visual ingredients and my base ingredients. 
+            Format the output nicely with recipe names, ingredient lists, and step-by-step instructions.`;
+
+            // Setup API Request
+            // Using gemini-1.5-flash as it is fast and supports multimodal (text + image) input
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{
+                    parts: [
+                        { text: promptText },
+                        { inline_data: { mime_type: mimeType, data: base64Image } }
+                    ]
+                }]
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error?.message || "API Request Failed");
+                }
+
+                // Extract text from Gemini response
+                let recipeText = data.candidates[0].content.parts[0].text;
+                
+                // Simple Markdown parsing for bold text
+                recipeText = recipeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                
+                recipeOutput.innerHTML = recipeText;
+                resultsDiv.style.display = 'block';
+
+            } catch (error) {
+                alert("Error: " + error.message);
+                console.error(error);
+            } finally {
+                generateBtn.disabled = false;
+                loader.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
