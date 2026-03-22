@@ -11,6 +11,7 @@
             --bg: #F9FAFB;
             --text: #111827;
             --border: #D1D5DB;
+            --card-bg: #FFFFFF;
         }
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -23,7 +24,7 @@
         }
         h1, h2 { text-align: center; }
         .card {
-            background: white;
+            background: var(--card-bg);
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -35,17 +36,17 @@
             margin-bottom: 8px;
             margin-top: 16px;
         }
-        input[type="text"], input[type="password"], textarea {
+        input[type="text"], input[type="password"], textarea, select {
             width: 100%;
             padding: 10px;
             border: 1px solid var(--border);
             border-radius: 6px;
             box-sizing: border-box;
             font-family: inherit;
+            font-size: 16px;
         }
         textarea { resize: vertical; }
         
-        /* Updated style for a single, full-width upload button */
         .file-upload-btn {
             display: block;
             background-color: #E5E7EB;
@@ -91,15 +92,54 @@
             display: none;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
+        
+        /* Accordion UI Styles */
         #results {
             margin-top: 20px;
-            padding: 15px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             display: none;
         }
-        .recipe-content { white-space: pre-wrap; }
+        .recipe-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .recipe-header {
+            padding: 16px;
+            cursor: pointer;
+            background-color: var(--card-bg);
+            transition: background-color 0.2s;
+        }
+        .recipe-header:hover {
+            background-color: #F3F4F6;
+        }
+        .recipe-header h3 {
+            margin: 0 0 4px 0;
+            color: var(--primary);
+        }
+        .recipe-header p {
+            margin: 0;
+            color: #4B5563;
+            font-size: 0.95em;
+        }
+        .recipe-details {
+            padding: 0 16px 16px 16px;
+            display: none;
+            border-top: 1px solid #E5E7EB;
+            margin-top: 10px;
+            padding-top: 16px;
+        }
+        .recipe-details h4 {
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+        .recipe-details ul, .recipe-details ol {
+            margin-top: 0;
+            padding-left: 20px;
+        }
+        
         .loader {
             text-align: center;
             display: none;
@@ -116,7 +156,14 @@
     <div class="card">
         <label for="apiKey">Gemini API Key (Saved locally)</label>
         <input type="password" id="apiKey" placeholder="AIzaSy...">
-        <small>Get a key from <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</small>
+        
+        <label for="mealType">What kind of meal?</label>
+        <select id="mealType">
+            <option value="Main course">Main Course</option>
+            <option value="Breakfast">Breakfast</option>
+            <option value="Dessert">Dessert</option>
+            <option value="Snack">Snack</option>
+        </select>
 
         <label for="baseIngredients">Base Ingredients Available</label>
         <textarea id="baseIngredients" rows="2">Salt, black pepper, butter, olive oil, milk, water</textarea>
@@ -135,7 +182,7 @@
 
     <div id="results">
         <h2>Suggestions:</h2>
-        <div id="recipeOutput" class="recipe-content"></div>
+        <div id="recipeOutput"></div>
     </div>
 
     <script>
@@ -151,6 +198,7 @@
         const loader = document.getElementById('loader');
         const resultsDiv = document.getElementById('results');
         const recipeOutput = document.getElementById('recipeOutput');
+        const mealTypeInput = document.getElementById('mealType');
 
         let base64Image = "";
         let mimeType = "";
@@ -171,10 +219,21 @@
             }
         });
 
+        // Function to toggle recipe details visibility
+        function toggleRecipe(headerElement) {
+            const detailsElement = headerElement.nextElementSibling;
+            if (detailsElement.style.display === "none" || detailsElement.style.display === "") {
+                detailsElement.style.display = "block";
+            } else {
+                detailsElement.style.display = "none";
+            }
+        }
+
         // Handle API Call
         generateBtn.addEventListener('click', async () => {
             const apiKey = document.getElementById('apiKey').value.trim();
             const baseIngredients = document.getElementById('baseIngredients').value.trim();
+            const mealType = mealTypeInput.value;
 
             if (!apiKey) {
                 alert("Please enter your Gemini API Key.");
@@ -190,10 +249,21 @@
             generateBtn.disabled = true;
             loader.style.display = 'block';
             resultsDiv.style.display = 'none';
+            recipeOutput.innerHTML = ''; // Clear previous results
 
+            // Instructing Gemini to return a specific JSON format
             const promptText = `I have attached an image showing some food ingredients. I also have the following base ingredients available in my pantry: ${baseIngredients}. 
-            Please analyze the image, identify the ingredients, and suggest 2 or 3 recipes I can make using a combination of the visual ingredients and my base ingredients. 
-            Format the output nicely with recipe names, ingredient lists, and step-by-step instructions.`;
+            Please analyze the image, identify the ingredients, and suggest 4 to 5 ${mealType} recipes I can make using a combination of the visual ingredients and my base ingredients. 
+            
+            IMPORTANT: You must respond ONLY with a raw JSON array of objects. Do not use markdown blocks like \`\`\`json. The JSON should exactly follow this structure:
+            [
+              {
+                "name": "Recipe Name",
+                "description": "A short, appetizing description of the dish.",
+                "ingredients": ["Ingredient 1", "Ingredient 2"],
+                "instructions": ["Step 1", "Step 2"]
+              }
+            ]`;
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
             
@@ -203,7 +273,11 @@
                         { text: promptText },
                         { inline_data: { mime_type: mimeType, data: base64Image } }
                     ]
-                }]
+                }],
+                // Force the model to output JSON
+                generationConfig: {
+                    responseMimeType: "application/json"
+                }
             };
 
             try {
@@ -219,14 +293,38 @@
                     throw new Error(data.error?.message || "API Request Failed");
                 }
 
-                let recipeText = data.candidates[0].content.parts[0].text;
-                recipeText = recipeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                // Get response and clean up any potential markdown wrap if the model hallucinates it
+                let responseText = data.candidates[0].content.parts[0].text;
+                responseText = responseText.replace(/```json\n?|```/g, '').trim();
                 
-                recipeOutput.innerHTML = recipeText;
+                const recipes = JSON.parse(responseText);
+
+                // Build the accordion UI dynamically
+                recipes.forEach(recipe => {
+                    const ingredientsHTML = recipe.ingredients.map(ing => `<li>${ing}</li>`).join('');
+                    const instructionsHTML = recipe.instructions.map(step => `<li>${step}</li>`).join('');
+
+                    const recipeHTML = `
+                        <div class="recipe-item">
+                            <div class="recipe-header" onclick="toggleRecipe(this)">
+                                <h3>${recipe.name}</h3>
+                                <p>${recipe.description} (Click to expand)</p>
+                            </div>
+                            <div class="recipe-details">
+                                <h4>Ingredients</h4>
+                                <ul>${ingredientsHTML}</ul>
+                                <h4>Instructions</h4>
+                                <ol>${instructionsHTML}</ol>
+                            </div>
+                        </div>
+                    `;
+                    recipeOutput.insertAdjacentHTML('beforeend', recipeHTML);
+                });
+
                 resultsDiv.style.display = 'block';
 
             } catch (error) {
-                alert("Error: " + error.message);
+                alert("Error parsing recipes. The AI might not have returned the correct format. Try again! \nDetails: " + error.message);
                 console.error(error);
             } finally {
                 generateBtn.disabled = false;
