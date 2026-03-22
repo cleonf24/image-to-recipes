@@ -45,15 +45,9 @@
         }
         textarea { resize: vertical; }
         
-        /* New styles for the photo buttons */
-        .photo-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
+        /* Updated style for a single, full-width upload button */
         .file-upload-btn {
-            flex: 1;
+            display: block;
             background-color: #E5E7EB;
             color: var(--text);
             border: 1px solid var(--border);
@@ -63,6 +57,10 @@
             font-weight: bold;
             cursor: pointer;
             transition: background-color 0.2s;
+            margin-top: 10px;
+            margin-bottom: 10px;
+            width: 100%;
+            box-sizing: border-box;
         }
         .file-upload-btn:hover { background-color: #D1D5DB; }
         .file-upload-btn input[type="file"] { display: none; }
@@ -124,16 +122,10 @@
         <textarea id="baseIngredients" rows="2">Salt, black pepper, butter, olive oil, milk, water</textarea>
 
         <label>Ingredient Photo</label>
-        <div class="photo-buttons">
-            <label class="file-upload-btn">
-                <input type="file" id="cameraInput" accept="image/*" capture="environment">
-                📸 Take Photo
-            </label>
-            <label class="file-upload-btn">
-                <input type="file" id="uploadInput" accept="image/*">
-                📁 Upload File
-            </label>
-        </div>
+        <label class="file-upload-btn">
+            <input type="file" id="uploadInput" accept="image/*">
+            📁 Upload Photo
+        </label>
         
         <img id="imagePreview" alt="Ingredient Preview">
 
@@ -153,7 +145,6 @@
             if (savedKey) document.getElementById("apiKey").value = savedKey;
         });
 
-        const cameraInput = document.getElementById('cameraInput');
         const uploadInput = document.getElementById('uploadInput');
         const imagePreview = document.getElementById('imagePreview');
         const generateBtn = document.getElementById('generateBtn');
@@ -164,8 +155,8 @@
         let base64Image = "";
         let mimeType = "";
 
-        // Reusable function to handle both camera and file uploads
-        function handleImageSelection(event) {
+        // Handle file upload
+        uploadInput.addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
                 mimeType = file.type;
@@ -178,11 +169,7 @@
                 }
                 reader.readAsDataURL(file);
             }
-        }
-
-        // Attach the event listener to both inputs
-        cameraInput.addEventListener('change', handleImageSelection);
-        uploadInput.addEventListener('change', handleImageSelection);
+        });
 
         // Handle API Call
         generateBtn.addEventListener('click', async () => {
@@ -194,7 +181,7 @@
                 return;
             }
             if (!base64Image) {
-                alert("Please upload or take a picture of your ingredients.");
+                alert("Please upload a picture of your ingredients.");
                 return;
             }
 
@@ -208,7 +195,6 @@
             Please analyze the image, identify the ingredients, and suggest 2 or 3 recipes I can make using a combination of the visual ingredients and my base ingredients. 
             Format the output nicely with recipe names, ingredient lists, and step-by-step instructions.`;
 
-            // Updated to use Gemini 3.1 Flash Lite Preview
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${apiKey}`;
             
             const payload = {
